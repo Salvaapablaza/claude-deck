@@ -20,6 +20,7 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
 
 WINDOW_TTL_S = 60
 
@@ -89,13 +90,26 @@ def _raise_window_by_title(fragment: str) -> bool:
 
     hwnd = found_hwnd[0]
     SW_RESTORE = 9
-    VK_MENU = 0x12
-    KEYEVENTF_KEYUP = 0x0002
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, SW_RESTORE)
-    user32.keybd_event(VK_MENU, 0, 0, 0)
-    user32.SetForegroundWindow(hwnd)
-    user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
+
+    if user32.GetForegroundWindow() == hwnd:
+        return True
+
+    # Attach to the foreground window's input thread so Windows allows the
+    # focus change (no synthetic ALT keystrokes - those pop the menu bar).
+    fg = user32.GetForegroundWindow()
+    fg_thread = user32.GetWindowThreadProcessId(fg, None) if fg else 0
+    this_thread = kernel32.GetCurrentThreadId()
+    attached = False
+    if fg_thread and fg_thread != this_thread:
+        attached = bool(user32.AttachThreadInput(this_thread, fg_thread, True))
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(this_thread, fg_thread, False)
     return True
 
 
