@@ -3,7 +3,7 @@
   "displayName": "Claude Deck Bridge",
   "description": "Lets the claude-deck daemon focus the terminal hosting a specific Claude Code session.",
   "version": "0.0.1",
-  "publisher": "salva",
+  "publisher": "claude-deck",
   "engines": {
     "vscode": "^1.85.0"
   },

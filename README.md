@@ -83,8 +83,8 @@ fire-and-forget, 2s timeout).
 ## Per-terminal focus
 
 `vscode-extension/claude-deck-bridge/` (sideloaded into
-`~/.vscode/extensions/salva.claude-deck-bridge-0.0.1`) runs a local HTTP
-endpoint per VS Code window and registers with the daemon. Hook events carry
+`~/.vscode/extensions/claude-deck.claude-deck-bridge-0.0.1` by `install.py`)
+runs a local HTTP endpoint per VS Code window and registers with the daemon. Hook events carry
 the hook process's ancestor PIDs; on key press the daemon asks each window
 whether one of its terminals matches (`terminal.processId` vs ancestry),
 the owning window reveals that exact terminal, and the daemon raises the OS
@@ -105,3 +105,10 @@ prompts and numbered questions.
   hook event repopulates them.
 - The body light bar is untamed (half-lit after our probes; power-cycle the
   deck to restore its default effect).
+
+## Disclaimer
+
+This is an independent hobby project, not affiliated with or endorsed by
+VSDinside, Mirabox, or Anthropic. Device communication uses the MIT-licensed
+[MiraboxSpace StreamDock Device SDK](https://github.com/MiraboxSpace/StreamDock-Device-SDK)
+(see LICENSE for attribution).
