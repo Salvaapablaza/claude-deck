@@ -139,8 +139,26 @@ class DeckTransport:
         def loop() -> None:
             last_beat = time.time()
             last_health = time.time()
+            last_tick = time.time()
             failures = 0
             while not self._stop.is_set():
+                # A large wall-clock gap means the machine slept. On resume the
+                # USB device has power-cycled: it dropped out of software mode
+                # and forgot its images, but the old handle may still read key
+                # events, so the liveness poll won't catch it. Force a full
+                # reconnect (reopen re-runs change_mode + wake + repaint).
+                now = time.time()
+                if now - last_tick > 10:
+                    logger.warning(
+                        "Wall-clock gap %.0fs (resume from sleep), reconnecting",
+                        now - last_tick,
+                    )
+                    reopen()
+                    last_beat = last_health = last_tick = time.time()
+                    failures = 0
+                    continue
+                last_tick = now
+
                 try:
                     while True:
                         cmd = self._cmd_q.get_nowait()
