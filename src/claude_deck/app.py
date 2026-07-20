@@ -44,6 +44,13 @@ async def register_window(request: Request) -> dict:
     return {"ok": True}
 
 
+@app.post("/refresh")
+def refresh() -> dict:
+    """Force a full repaint (e.g. after the device was cleared on resume)."""
+    store.mark_all_dirty()
+    return {"ok": True}
+
+
 @app.post("/led")
 async def led(request: Request) -> dict:
     p = await request.json()
@@ -120,13 +127,22 @@ def on_key(key_id: int, pressed: bool) -> None:
 
 def repaint_loop() -> None:
     last_sweep = time.time()
+    last_tick = time.time()
     while True:
         time.sleep(0.3)
+        now = time.time()
+        if now - last_tick > 10:
+            logger.info(
+                "Wall-clock gap %.0fs (resume from sleep?), repainting all",
+                now - last_tick,
+            )
+            store.mark_all_dirty()
+        last_tick = now
         if not deck.connected:
             continue
-        if time.time() - last_sweep > 600:
+        if now - last_sweep > 600:
             store.sweep_stale()
-            last_sweep = time.time()
+            last_sweep = now
         dirty = store.pop_dirty()
         if not dirty:
             continue
