@@ -138,6 +138,7 @@ class DeckTransport:
 
         def loop() -> None:
             last_beat = time.time()
+            last_health = time.time()
             failures = 0
             while not self._stop.is_set():
                 try:
@@ -153,16 +154,30 @@ class DeckTransport:
                 if time.time() - last_beat >= HEARTBEAT_INTERVAL_S:
                     try:
                         self._api.heartbeat()
-                        failures = 0
                     except Exception as exc:
                         logger.error("Heartbeat failed: %s", exc)
                         failures += 1
                     last_beat = time.time()
 
+                # The SDK wrapper swallows I/O errors (returns empty instead of
+                # raising), so exceptions alone can't detect an unplugged deck.
+                # Poll the firmware version as an active liveness check.
+                if time.time() - last_health >= 12:
+                    try:
+                        alive = bool(self._api.get_firmware_version())
+                    except Exception:
+                        alive = False
+                    if alive:
+                        failures = 0
+                    else:
+                        logger.warning("Health check failed (deck unplugged?)")
+                        failures += 3
+                    last_health = time.time()
+
                 if failures >= 3:
                     reopen()
                     failures = 0
-                    last_beat = time.time()
+                    last_beat = last_health = time.time()
                     continue
 
                 try:
