@@ -48,6 +48,20 @@ async function handleFocus(body, res) {
   return res.end('{"found":false}');
 }
 
+async function handleTerminalName(body, res) {
+  let pids = [];
+  try {
+    pids = new Set(JSON.parse(body).pids || []);
+  } catch (e) {
+    res.writeHead(400);
+    return res.end('{"error":"bad json"}');
+  }
+  const pairs = await terminalPids();
+  const match = pairs.find(([pid]) => pids.has(pid));
+  res.writeHead(200, { "Content-Type": "application/json" });
+  return res.end(JSON.stringify({ name: match ? match[1].name : null }));
+}
+
 function registerWithBroker(port) {
   const folders = (vscode.workspace.workspaceFolders || []).map(
     (f) => f.uri.fsPath
@@ -77,6 +91,12 @@ function activate(context) {
       let body = "";
       req.on("data", (c) => (body += c));
       req.on("end", () => handleFocus(body, res));
+      return;
+    }
+    if (req.method === "POST" && req.url === "/terminal-name") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => handleTerminalName(body, res));
       return;
     }
     res.writeHead(404);

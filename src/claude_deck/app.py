@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 
-from .focus import focus_and_answer, focus_session, registry
+from .focus import focus_and_answer, focus_session, registry, resolve_terminal_name
 from .render import render_key
 from .state import SessionStore
 from .transport import DeckTransport, slot_to_key_id
@@ -149,6 +149,19 @@ def repaint_loop() -> None:
             deck.set_led_strips(15, 40, 120, count=64)
 
 
+def label_refresh_loop() -> None:
+    """Poll the VS Code bridges for each session's terminal name, so renaming
+    a terminal tab updates its tile within a few seconds."""
+    while True:
+        time.sleep(5)
+        for session in store.snapshot():
+            if not session.ancestry:
+                continue
+            name = resolve_terminal_name(session.ancestry)
+            if name:
+                store.update_term_label(session.session_id, name)
+
+
 def start_deck() -> None:
     while not deck.open():
         logger.warning("Deck not found, retrying in 5s...")
@@ -156,6 +169,7 @@ def start_deck() -> None:
     deck.start(on_key, on_reconnect=store.mark_all_dirty)
     store.mark_all_dirty()
     threading.Thread(target=repaint_loop, daemon=True).start()
+    threading.Thread(target=label_refresh_loop, daemon=True).start()
 
 
 def main() -> None:

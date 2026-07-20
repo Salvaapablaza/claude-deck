@@ -14,7 +14,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd"]
+HOOK_EVENTS = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PostToolUse",
+    "Notification",
+    "Stop",
+    "SessionEnd",
+]
 
 
 def step(msg: str) -> None:

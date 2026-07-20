@@ -32,6 +32,18 @@ variants with minor tweaks (see key size / id mapping notes below).
 
 The two LED strips under the keys turn amber when any session needs attention.
 
+State returns to blue (running) on `PostToolUse`, so a tile that went gold for
+a permission prompt flips back to blue as soon as work resumes after you
+approve — it no longer stays stuck on the prompt color.
+
+## Tile labels
+
+A tile shows the session's **VS Code terminal tab name** if you've renamed it
+(right-click the terminal tab → Rename, or the tab dropdown). Otherwise it
+falls back to the repo folder name. Renames are picked up automatically within
+~5s via the bridge extension. Generic shell names (pwsh, bash, node, claude…)
+are ignored so an un-renamed terminal still shows the repo.
+
 ## Architecture
 
 ```

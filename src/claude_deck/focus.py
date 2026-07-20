@@ -16,6 +16,7 @@ import subprocess
 import threading
 import time
 import urllib.request
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,41 @@ class WindowRegistry:
 
 
 registry = WindowRegistry()
+
+
+GENERIC_TERMINAL_NAMES = {
+    "pwsh",
+    "powershell",
+    "bash",
+    "sh",
+    "zsh",
+    "cmd",
+    "node",
+    "claude",
+    "git bash",
+    "python",
+}
+
+
+def resolve_terminal_name(ancestry: list[int]) -> Optional[str]:
+    """Ask registered VS Code windows for the name of the terminal that owns
+    one of these PIDs. Returns None for generic (un-renamed) shell names so
+    the caller falls back to the repo name."""
+    for window in registry.alive():
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{window['port']}/terminal-name",
+                data=json.dumps({"pids": ancestry}).encode(),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                name = json.loads(resp.read()).get("name")
+        except Exception:
+            continue
+        if name and name.strip().lower() not in GENERIC_TERMINAL_NAMES:
+            return name.strip()
+    return None
 
 
 def _ask_window(port: int, pids: list[int]) -> bool:

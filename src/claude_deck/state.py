@@ -13,6 +13,7 @@ TERMINAL_HOSTS = {"code.exe", "windowsterminal.exe", "wt.exe"}
 EVENT_STATE_MAP = {
     "SessionStart": "idle",
     "UserPromptSubmit": "running",
+    "PostToolUse": "running",
     "Stop": "idle",
     "SessionEnd": "offline",
 }
@@ -26,9 +27,12 @@ class Session:
     state: str = "idle"
     last_event: float = field(default_factory=time.time)
     ancestry: list[int] = field(default_factory=list)
+    term_label: Optional[str] = None
 
     @property
     def label(self) -> str:
+        if self.term_label:
+            return self.term_label
         return Path(self.cwd).name if self.cwd else self.session_id[:7]
 
 
@@ -63,6 +67,7 @@ class SessionStore:
                     del self._sessions[session_id]
                 return
 
+            newly_created = False
             if session is None:
                 if ancestry_names and not TERMINAL_HOSTS.intersection(ancestry_names):
                     return
@@ -71,7 +76,9 @@ class SessionStore:
                     return
                 session = Session(session_id=session_id, cwd=cwd, slot=slot)
                 self._sessions[session_id] = session
+                newly_created = True
 
+            old_state = session.state
             if cwd:
                 session.cwd = cwd
             if ancestry:
@@ -87,7 +94,15 @@ class SessionStore:
             else:
                 session.state = EVENT_STATE_MAP.get(event, session.state)
 
-            self._dirty_slots.add(session.slot)
+            if newly_created or session.state != old_state:
+                self._dirty_slots.add(session.slot)
+
+    def update_term_label(self, session_id: str, name: Optional[str]) -> None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session and name and session.term_label != name:
+                session.term_label = name
+                self._dirty_slots.add(session.slot)
 
     def session_for_slot(self, slot: int) -> Optional[Session]:
         with self._lock:
