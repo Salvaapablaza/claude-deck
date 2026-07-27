@@ -73,12 +73,19 @@ Device protocol notes (hard-won):
 - Front LED strips: `set_led_color(2, r, g, b)` works. The body light bar
   (`set_keyboard_rgb_backlight`/effects) only partially responds — unused.
 
-## Run
+## Run & autostart
 
 ```
-start_deck.bat            # console
-start_deck_hidden.vbs     # no console (put a shortcut in shell:startup)
+start_deck.bat            # foreground console (manual/debug)
 ```
+
+`install.py` registers a **self-healing scheduled task** ("claude-deck") that
+runs the daemon (`run_daemon.py`) on **logon** and on **session unlock**, with
+**restart-on-failure** and **runs-on-battery** enabled. Session-unlock is the
+key trigger: closing/opening the laptop lid doesn't re-login, so a login-only
+autostart never recovers a daemon that died during a long sleep — but unlock
+fires on lid-open and relaunches it. `MultipleInstancesPolicy=IgnoreNew` plus
+the daemon's own port-bind guard prevent duplicate instances.
 
 Debug: `GET http://127.0.0.1:8642/status`
 

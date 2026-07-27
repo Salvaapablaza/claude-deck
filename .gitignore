@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 *.log
 .vscode/
+claude-deck-task.xml

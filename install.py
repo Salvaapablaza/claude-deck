@@ -73,22 +73,68 @@ def install_extension() -> None:
     print(f"sideloaded to {dest} (restart VS Code to load)")
 
 
+TASK_XML = """<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>claude-deck daemon - self-healing autostart</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger><Enabled>true</Enabled><UserId>{user}</UserId></LogonTrigger>
+    <SessionStateChangeTrigger>
+      <Enabled>true</Enabled>
+      <UserId>{user}</UserId>
+      <StateChange>SessionUnlock</StateChange>
+    </SessionStateChangeTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>{user}</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <RestartOnFailure><Interval>PT1M</Interval><Count>3</Count></RestartOnFailure>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>{pythonw}</Command>
+      <Arguments>run_daemon.py</Arguments>
+      <WorkingDirectory>{root}</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>
+"""
+
+
 def install_startup() -> None:
-    step("Login autostart")
-    vbs = ROOT / "start_deck_hidden.vbs"
-    vbs.write_text(
-        "' Launch the claude-deck daemon without a console window\n"
-        'Set shell = CreateObject("WScript.Shell")\n'
-        f'shell.CurrentDirectory = "{ROOT}"\n'
-        'shell.Environment("PROCESS")("PYTHONPATH") = "src"\n'
-        f'shell.Run """{ROOT / "venv" / "Scripts" / "pythonw.exe"}"" -m claude_deck.app", 0, False\n'
+    step("Autostart (self-healing scheduled task)")
+    user = f"{os.environ['USERDOMAIN']}\\{os.environ['USERNAME']}"
+    pythonw = ROOT / "venv" / "Scripts" / "pythonw.exe"
+    xml = TASK_XML.format(user=user, pythonw=pythonw, root=ROOT)
+    xml_path = ROOT / "claude-deck-task.xml"
+    xml_path.write_text(xml, encoding="utf-16")
+    subprocess.check_call(
+        ["schtasks", "/create", "/tn", "claude-deck", "/xml", str(xml_path), "/f"]
     )
-    startup = (
+    # Retire the old login-only startup shortcut if a previous install left one.
+    old = (
         Path(os.environ["APPDATA"])
         / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        / "claude-deck.vbs"
     )
-    shutil.copy2(vbs, startup / "claude-deck.vbs")
-    print(f"startup script at {startup / 'claude-deck.vbs'}")
+    if old.exists():
+        old.unlink()
+    print("scheduled task 'claude-deck' registered (logon + unlock, restart on fail)")
 
 
 def main() -> None:
@@ -98,8 +144,9 @@ def main() -> None:
     install_hooks()
     install_extension()
     install_startup()
+    subprocess.run(["schtasks", "/run", "/tn", "claude-deck"], check=False)
     step("Done")
-    print("Start now with start_deck.bat, or log off/on for autostart.")
+    print("Daemon started via the scheduled task (also runs on logon + unlock).")
     print("Plug in the deck; sessions appear as you interact with Claude Code.")
 
 
