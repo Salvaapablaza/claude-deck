@@ -1,0 +1,8 @@
+{
+  "claude_command": "claude",
+  "design_command": "/your-design-skill",
+  "review_command": "/your-review-skill",
+  "design_terminal_name": "Claude — Design",
+  "review_terminal_name": "Claude — Review",
+  "compact_command": "/compact"
+}

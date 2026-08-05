@@ -4,3 +4,5 @@ __pycache__/
 *.log
 .vscode/
 claude-deck-task.xml
+config.json
+action_tiles_preview.png

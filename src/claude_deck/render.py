@@ -5,6 +5,7 @@ oversized images bleed into neighboring keys; 64x64 fills perfectly).
 """
 
 import io
+import re
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -19,7 +20,16 @@ STATE_COLORS = {
     "error": (222, 56, 43),
     "offline": (60, 66, 82),
     "empty": (16, 18, 24),
+    "action": (28, 96, 120),
 }
+
+
+def _sanitize(text: str) -> str:
+    """Keep only printable ASCII the deck font can render, and drop any leading
+    non-alphanumeric noise (e.g. VS Code's mojibake emoji prefix)."""
+    ascii_only = "".join(c for c in text if 0x20 <= ord(c) <= 0x7E)
+    ascii_only = re.sub(r"^[^0-9A-Za-z]+", "", ascii_only)
+    return " ".join(ascii_only.split())
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont:
@@ -97,6 +107,59 @@ def _fit_label(label: str, max_chars: int = 9) -> list[str]:
     return [label[:max_chars], label[max_chars : max_chars * 2 - 1] + "…"]
 
 
+ACTION_BG = {
+    "design": (150, 110, 20),
+    "review": (28, 96, 120),
+    "compact": (96, 64, 150),
+}
+
+
+def _draw_action_icon(draw: ImageDraw.ImageDraw, name: str, cx: int, cy: int, s: int) -> None:
+    white = (255, 255, 255)
+    w = 3
+    if name == "design":  # lightbulb
+        draw.ellipse([cx - s, cy - s, cx + s, cy + s], outline=white, width=w)
+        draw.line([cx - s * 0.45, cy + s * 0.9, cx - s * 0.45, cy + s * 1.6], fill=white, width=w)
+        draw.line([cx + s * 0.45, cy + s * 0.9, cx + s * 0.45, cy + s * 1.6], fill=white, width=w)
+        draw.line([cx - s * 0.45, cy + s * 1.6, cx + s * 0.45, cy + s * 1.6], fill=white, width=w)
+        for dx, dy in ((-1.6, -1.4), (0, -1.9), (1.6, -1.4)):
+            draw.line(
+                [cx + dx * s * 0.7, cy + dy * s * 0.7, cx + dx * s, cy + dy * s],
+                fill=white,
+                width=2,
+            )
+    elif name == "review":  # magnifying glass
+        r = s * 0.8
+        lx, ly = cx - s * 0.2, cy - s * 0.2
+        draw.ellipse([lx - r, ly - r, lx + r, ly + r], outline=white, width=w)
+        draw.line([lx + r * 0.7, ly + r * 0.7, cx + s * 1.15, cy + s * 1.15], fill=white, width=w + 1)
+    elif name == "compact":  # compress toward center
+        draw.line([cx - s, cy, cx + s, cy], fill=white, width=1)
+        draw.line([cx - s * 0.75, cy - s, cx, cy - s * 0.2], fill=white, width=w)
+        draw.line([cx + s * 0.75, cy - s, cx, cy - s * 0.2], fill=white, width=w)
+        draw.line([cx - s * 0.75, cy + s, cx, cy + s * 0.2], fill=white, width=w)
+        draw.line([cx + s * 0.75, cy + s, cx, cy + s * 0.2], fill=white, width=w)
+
+
+def render_action(name: str, label: str) -> bytes:
+    size = KEY_SIZE
+    color = ACTION_BG.get(name, STATE_COLORS["action"])
+    img = Image.new("RGB", (size, size), color)
+    _vertical_gradient(img, color)
+    draw = ImageDraw.Draw(img)
+    _draw_action_icon(draw, name, size // 2, 24, 13)
+    draw.text((size // 2, size - 11), _sanitize(label)[:8], font=_font(11), fill="white", anchor="mm")
+
+    data = b""
+    for quality in range(90, 10, -10):
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality, subsampling=0)
+        data = buf.getvalue()
+        if len(data) <= MAX_JPEG_BYTES:
+            return data
+    return data[:MAX_JPEG_BYTES]
+
+
 def render_key(label: str, state: str, sublabel: str = "") -> bytes:
     size = KEY_SIZE
     color = STATE_COLORS.get(state, STATE_COLORS["offline"])
@@ -122,6 +185,7 @@ def render_key(label: str, state: str, sublabel: str = "") -> bytes:
     draw = ImageDraw.Draw(img)
     _draw_glyph(draw, state, size // 2, int(band_h * 0.52), int(size * 0.15))
 
+    label = _sanitize(label)
     lines = _fit_label(label) if label else []
     text_area_top = band_h
     text_area_h = size - 3 - band_h

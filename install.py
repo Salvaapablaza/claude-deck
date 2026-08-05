@@ -35,7 +35,7 @@ def create_venv() -> Path:
         subprocess.check_call([sys.executable, "-m", "venv", str(venv)])
     pip = venv / "Scripts" / "pip.exe"
     subprocess.check_call(
-        [str(pip), "install", "--quiet", "hidapi", "pillow", "fastapi", "uvicorn"]
+        [str(pip), "install", "--quiet", "hidapi", "pillow", "fastapi", "uvicorn", "pyperclip"]
     )
     print("venv ready")
     return venv

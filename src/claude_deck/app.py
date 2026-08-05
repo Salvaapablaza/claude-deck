@@ -7,9 +7,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 
+from .actions import compact_action, design_action, review_action
 from .focus import focus_and_answer, focus_session, registry, resolve_terminal_name
-from .render import render_key
-from .state import SessionStore
+from .render import render_action, render_key
+from .state import ACTION_KEYS, SessionStore
 from .transport import DeckTransport, slot_to_key_id
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,13 @@ async def hook(request: Request) -> dict:
     message = payload.get("message", "")
     ancestry = payload.get("ancestry") or []
     ancestry_names = payload.get("ancestry_names") or []
+    logger.info(
+        "HOOK event=%s sid=%s cwd=%s hosts=%s",
+        event,
+        session_id[:8],
+        cwd,
+        ancestry_names,
+    )
     if session_id and event:
         store.handle_event(session_id, cwd, event, message, ancestry, ancestry_names)
     return {"ok": True}
@@ -82,19 +90,37 @@ def status() -> dict:
             }
             for s in sorted(store.snapshot(), key=lambda s: s.slot)
         ],
+        "windows": [
+            {"port": w["port"], "name": w.get("name"), "folders": w.get("folders")}
+            for w in registry.alive()
+        ],
     }
 
 
 ROUND_BUTTONS = {37: 1, 48: 2, 49: 3}
+ACTION_HANDLERS = {5: design_action, 10: review_action, 15: compact_action}
+ACTION_LABELS = {5: "Design", 10: "Review", 15: "Compact"}
+ACTION_ICONS = {5: "design", 10: "review", 15: "compact"}
+ACTION_DEBOUNCE_S = 1.5
+_last_action_ts: dict[int, float] = {}
 
 
 def on_key(key_id: int, pressed: bool) -> None:
     """Input key ids arrive in reading order (top-left = 1), matching slots.
 
-    The 3 round buttons (ids 37/48/49) answer the pending prompt of the most
-    recently active waiting session with option 1/2/3.
+    Right column (5/10/15) = macro actions. Round buttons (37/48/49) answer
+    the pending prompt of the most recently waiting session with option 1/2/3.
     """
     if not pressed:
+        return
+
+    if key_id in ACTION_HANDLERS:
+        now = time.time()
+        if now - _last_action_ts.get(key_id, 0) < ACTION_DEBOUNCE_S:
+            return
+        _last_action_ts[key_id] = now
+        logger.info("Action key %s -> %s", key_id, ACTION_LABELS[key_id])
+        threading.Thread(target=ACTION_HANDLERS[key_id], daemon=True).start()
         return
 
     if key_id in ROUND_BUTTONS:
@@ -148,11 +174,14 @@ def repaint_loop() -> None:
             continue
         sessions = {s.slot: s for s in store.snapshot()}
         for slot in sorted(dirty):
-            session = sessions.get(slot)
-            if session:
-                jpeg = render_key(session.label, session.state, str(slot))
+            if slot in ACTION_KEYS:
+                jpeg = render_action(ACTION_ICONS[slot], ACTION_LABELS.get(slot, ""))
             else:
-                jpeg = render_key("", "empty")
+                session = sessions.get(slot)
+                if session:
+                    jpeg = render_key(session.label, session.state, str(slot))
+                else:
+                    jpeg = render_key("", "empty")
             try:
                 deck.paint_key(slot_to_key_id(slot), jpeg)
             except Exception as exc:

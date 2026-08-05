@@ -8,6 +8,11 @@ from typing import Optional
 
 MAX_SLOTS = 15
 
+# The right column (input key ids 5, 10, 15) is reserved for macro actions,
+# so sessions use the remaining 12 keys.
+ACTION_KEYS = {5, 10, 15}
+SESSION_KEYS = [k for k in range(1, MAX_SLOTS + 1) if k not in ACTION_KEYS]
+
 TERMINAL_HOSTS = {"code.exe", "windowsterminal.exe", "wt.exe"}
 
 EVENT_STATE_MAP = {
@@ -44,7 +49,7 @@ class SessionStore:
 
     def _free_slot(self) -> Optional[int]:
         used = {s.slot for s in self._sessions.values()}
-        for slot in range(1, MAX_SLOTS + 1):
+        for slot in SESSION_KEYS:
             if slot not in used:
                 return slot
         return None

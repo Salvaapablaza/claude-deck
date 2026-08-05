@@ -109,6 +109,40 @@ whether one of its terminals matches (`terminal.processId` vs ancestry),
 the owning window reveals that exact terminal, and the daemon raises the OS
 window via win32. Fallback: `code <cwd>`.
 
+## Action column (right column: keys 5 / 10 / 15)
+
+The right column is reserved for macro actions (sessions use the other 12 keys):
+
+| Key | Action | What it does |
+|-----|--------|--------------|
+| top-right (5) | **Design** | Reads the clipboard, opens a new `Claude — Design` terminal in VS Code, launches Claude, and runs your configured design command with the clipboard as argument |
+| mid-right (10) | **Review** | Same, with your configured review command in a `Claude — Review` terminal |
+| bottom-right (15) | **Compact** | Sends `/compact` to the **last-active** VS Code terminal (must contain a Claude session) — creates nothing |
+
+The Design/Review slash commands are **not shipped** — set your own
+(project/personal) skills in `config.json` (copy `config.example.json`):
+
+```json
+{ "design_command": "/your-design-skill", "review_command": "/your-review-skill" }
+```
+
+If a command is left blank, that action shows a "configure it" notification
+and does nothing.
+
+Key properties:
+- **No shell interpolation**: the clipboard is injected via the VS Code terminal
+  API (bracketed paste for multiline), never spliced into a shell command.
+- **Readiness, not blind delay**: the daemon polls the terminal's process tree
+  for a `claude`/`node` child before injecting, then submits with an explicit `\r`.
+- **Focus-proof compact**: the bridge tracks `lastActiveTerminal` continuously,
+  so the Stream Deck stealing focus can't retarget it.
+- **Debounced** (1.5s) against double-presses; **empty clipboard** shows an error
+  notification and creates nothing.
+- Command names, terminal names, and the `claude` executable are configurable in
+  `config.json` (see `config.example.json`). `config.json` is git-ignored, so
+  your private skill names never get committed.
+- Never auto-approves Claude's permission prompts.
+
 ## Round buttons
 
 The 3 round buttons below the screen (input ids 37/48/49) answer the pending
