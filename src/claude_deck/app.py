@@ -217,6 +217,35 @@ def start_deck() -> None:
     threading.Thread(target=label_refresh_loop, daemon=True).start()
 
 
+def _watchdog() -> None:
+    """Self-heal safety net: if the daemon is alive as a process but no longer
+    serving (uvicorn wedged, device thread dead, deadlock after resume), the
+    scheduled task's IgnoreNew policy would never replace it. So we self-check
+    /status and, if it stops responding, exit so the task restarts us clean."""
+    import os
+    import urllib.request
+
+    time.sleep(30)  # startup grace
+    url = f"http://{HOST}:{PORT}/status"
+    fails = 0
+    while True:
+        time.sleep(20)
+        ok = False
+        try:
+            with urllib.request.urlopen(url, timeout=4) as resp:
+                ok = resp.status == 200
+        except Exception:
+            ok = False
+        if ok:
+            fails = 0
+        else:
+            fails += 1
+            logger.warning("Watchdog: /status unhealthy (%d/3)", fails)
+            if fails >= 3:
+                logger.error("Watchdog: unhealthy, exiting for task restart")
+                os._exit(1)
+
+
 def main() -> None:
     import os
     import sys
@@ -250,6 +279,7 @@ def main() -> None:
         probe.close()
 
     threading.Thread(target=start_deck, daemon=True).start()
+    threading.Thread(target=_watchdog, daemon=True).start()
 
     import uvicorn
 

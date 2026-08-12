@@ -118,8 +118,9 @@ def _clipboard_action(command: str, terminal_name: str) -> None:
 
     _post(port, "/send-terminal", {"target": term_id, "text": command + " "})
     _post(port, "/send-terminal", {"target": term_id, "text": clip, "bracketed": "\n" in clip})
-    time.sleep(0.3)
+    time.sleep(cfg["submit_delay_s"])
     _post(port, "/send-terminal", {"target": term_id, "submit": True})
+    logger.info("Injected %s + %d chars, submitted", command, len(clip))
     _notify(port, "info", f"Enviado: {command}")
 
 

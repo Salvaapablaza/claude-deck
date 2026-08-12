@@ -18,8 +18,11 @@ _DEFAULTS = {
     "design_terminal_name": "Claude — Design",
     "review_terminal_name": "Claude — Review",
     "compact_command": "/compact",
-    "ready_timeout_s": 20,
-    "ready_settle_s": 0.8,
+    "ready_timeout_s": 25,
+    # Claude with heavy plugins takes several seconds to finish loading after
+    # its process appears; inject too early and the Enter gets dropped.
+    "ready_settle_s": 2.5,
+    "submit_delay_s": 0.6,
 }
 
 _CONFIG_PATH = Path(__file__).resolve().parents[2] / "config.json"

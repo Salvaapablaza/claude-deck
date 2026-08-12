@@ -87,6 +87,13 @@ autostart never recovers a daemon that died during a long sleep — but unlock
 fires on lid-open and relaunches it. `MultipleInstancesPolicy=IgnoreNew` plus
 the daemon's own port-bind guard prevent duplicate instances.
 
+**Watchdog.** `IgnoreNew` has a failure mode: if the daemon survives as a
+process but stops serving (uvicorn wedged, device thread dead, or a deadlock
+after a long sleep), the task won't replace the "still running" zombie. So the
+daemon self-checks `GET /status` every 20s and, after 3 consecutive failures,
+exits (`os._exit(1)`) — the task then restarts it clean. Self-heals regardless
+of the root cause.
+
 Debug: `GET http://127.0.0.1:8642/status`
 
 Logs: the venv uses Microsoft-Store Python, whose MSIX virtualization
